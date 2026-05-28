@@ -28,9 +28,10 @@ function(add_libopencm3_dependency)
 
     add_custom_command(
         OUTPUT "${libopencm3_library}"
-        COMMAND "${MAKE_EXECUTABLE}" TARGETS=stm32/f1
+        COMMAND "${MAKE_EXECUTABLE}" TARGETS=stm32/f1 PREFIX="${TOOLCHAIN_PREFIX}"
         WORKING_DIRECTORY "${libopencm3_SOURCE_DIR}"
-        COMMENT "Building libopencm3")
+        COMMENT "Building libopencm3"
+        VERBATIM)
 
     add_custom_target(libopencm3_build DEPENDS "${libopencm3_library}")
 

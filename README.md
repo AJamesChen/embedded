@@ -32,7 +32,7 @@ If the board is powered separately, still connect ST-LINK GND to the board GND.
 Install the ARM toolchain, CMake, make, and ST-LINK tools. On Debian/Ubuntu:
 
 ```bash
-sudo apt install cmake make gcc-arm-none-eabi stlink-tools
+sudo apt install cmake make gcc-arm-none-eabi binutils-arm-none-eabi libnewlib-arm-none-eabi stlink-tools
 ```
 
 Check the tools:
