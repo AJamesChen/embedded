@@ -25,7 +25,12 @@ jobs:
             make \
             gcc-arm-none-eabi \
             binutils-arm-none-eabi \
+            libnewlib-dev \
             libnewlib-arm-none-eabi
+
+      - name: Verify ARM C library headers
+        run: |
+          printf '#include <stdlib.h>\n#include <string.h>\n' | arm-none-eabi-gcc -xc -E - >/dev/null
 
       - name: Configure
         run: >
