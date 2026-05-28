@@ -1,6 +1,14 @@
 # Prerequisites
 *.d
 
+# Local CMake builds
+build/
+build-*/
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+compile_commands.json
+
 # Object files
 *.o
 *.ko
@@ -34,7 +42,12 @@
 *.app
 *.i*86
 *.x86_64
+*.bin
 *.hex
+
+# Local flash backups
+backup*.bin
+*.backup.bin
 
 # Debug files
 *.dSYM/

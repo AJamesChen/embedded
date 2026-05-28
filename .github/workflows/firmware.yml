@@ -1,0 +1,49 @@
+name: Firmware
+
+on:
+  push:
+    branches:
+      - main
+      - master
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  stm32f103-gpio-blink:
+    name: Build STM32F103 GPIO blink
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Install toolchain
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            cmake \
+            make \
+            gcc-arm-none-eabi \
+            binutils-arm-none-eabi
+
+      - name: Configure
+        run: >
+          cmake -S . -B build-arm
+          -DCMAKE_TOOLCHAIN_FILE=cmake/toolchains/arm-none-eabi.cmake
+          -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build
+        run: cmake --build build-arm --target gpio_blink --parallel
+
+      - name: Print firmware size
+        run: arm-none-eabi-size build-arm/stm32f103/libopencm3/gpio_blink/gpio_blink.elf
+
+      - name: Upload firmware artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: gpio_blink-stm32f103
+          path: |
+            build-arm/stm32f103/libopencm3/gpio_blink/gpio_blink.elf
+            build-arm/stm32f103/libopencm3/gpio_blink/gpio_blink.bin
+            build-arm/stm32f103/libopencm3/gpio_blink/gpio_blink.hex
+          if-no-files-found: error
