@@ -1,8 +1,15 @@
 # Embedded STM32 Examples
 
-This repository contains small embedded firmware examples. The current project is
-an STM32F103/libopencm3 GPIO blink firmware for an STM32F1 medium-density target
-such as an STM32F103C8/CB board.
+This repository contains small embedded firmware examples for STM32F103 targets
+using libopencm3.
+
+Current examples:
+
+- `gpio_blink`: bare-metal `PC13` LED blink
+- `rtos_blinky`: minimal FreeRTOS task scheduling
+- `uart_freertos`: FreeRTOS task output on `USART1`
+- `usb_cdc_acm_baremetal`: bare-metal USB CDC ACM echo
+- `usb_cdc_acm_freertos`: USB CDC ACM echo using FreeRTOS stream buffers
 
 ## Hardware
 
@@ -52,10 +59,19 @@ Configure a fresh build directory with the ARM toolchain file:
 cmake -S . -B build-arm -DCMAKE_TOOLCHAIN_FILE=cmake/toolchains/arm-none-eabi.cmake
 ```
 
-Build the blink firmware:
+Build one firmware target:
 
 ```bash
 cmake --build build-arm --target gpio_blink
+```
+
+Other available targets:
+
+```bash
+cmake --build build-arm --target rtos_blinky
+cmake --build build-arm --target uart_freertos
+cmake --build build-arm --target usb_cdc_acm_baremetal
+cmake --build build-arm --target usb_cdc_acm_freertos
 ```
 
 Generated firmware files:
@@ -160,6 +176,28 @@ cd /home/jamesc/git/skills/embedded
 st-flash write build-arm/stm32f103/libopencm3/gpio_blink/gpio_blink.bin 0x08000000
 ```
 
+### `Couldn't find any ST-Link devices`
+
+If `st-flash` cannot find ST-LINK but `lsusb` shows `0483:3748`, Linux can see
+the USB programmer but the current user may not have permission to open it:
+
+```bash
+lsusb | grep -i -E 'stlink|0483'
+sudo st-info --probe
+sudo st-info --chipid
+```
+
+If `sudo st-info --chipid` returns `0x0410`, flash with `sudo` or install udev
+rules for ST-LINK access:
+
+```bash
+sudo st-flash write build-arm/stm32f103/libopencm3/usb_cdc_acm_freertos/usb_cdc_acm_freertos.bin 0x08000000
+```
+
+Use the full flash base address `0x08000000`. A shortened address such as
+`0x0800000` is outside the known STM32 flash region and `st-flash` will print
+`Unknown memory region`.
+
 ### `st-info --chipid` returns `0x0000`
 
 ST-LINK is connected over USB, but it cannot see the STM32 over SWD. Check:
@@ -222,3 +260,81 @@ The board was reset after flashing
 
 The current blink code toggles `GPIOC, GPIO13`. With `delay_ms(2000)`, the LED
 changes state every 2 seconds, so a full on/off cycle takes about 4 seconds.
+
+### USB CDC does not create `/dev/ttyACM0`
+
+`/dev/ttyACM0` appears only after the STM32 native USB port enumerates as CDC
+ACM. It is separate from the ST-LINK USB port.
+
+Useful checks:
+
+```bash
+sudo dmesg -w
+ls -l /dev/ttyACM*
+```
+
+Root causes found during bring-up:
+
+- The firmware must actually be flashed. `st-flash` may fail because of missing
+  permissions, wrong working directory, or a mistyped address.
+- On Blue Pill style boards, `PA12`/USB D+ may need a boot-time disconnect
+  pulse. The examples pull `PA12` low briefly and then release it back to input
+  floating before enabling USB.
+- The FreeRTOS USB service task must poll `usbd_poll()` frequently during
+  enumeration. A 1 ms task delay caused Linux `error -71` configuration
+  descriptor failures on the tested host. The RTOS USB example now polls USB and
+  uses `taskYIELD()` instead of sleeping in the USB task.
+
+If Linux reports `device descriptor read/all, error -71` or `can't read
+configurations, error -71`, test the bare-metal USB example as a control:
+
+```bash
+sudo st-flash write build-arm/stm32f103/libopencm3/usb_cdc_acm_baremetal/usb_cdc_acm_baremetal.bin 0x08000000
+```
+
+If both bare-metal and FreeRTOS USB examples fail, check the USB cable, native
+USB connector, `PA11`/`PA12` wiring, D+ pull-up, and 8 MHz crystal.
+
+### Testing USB CDC echo
+
+Find the active ACM device from `dmesg`:
+
+```bash
+sudo dmesg | tail -40
+```
+
+Example:
+
+```text
+Product: STM32F103 CDC ACM FreeRTOS
+cdc_acm ... ttyACM1: USB ACM device
+```
+
+Use the reported path, such as `/dev/ttyACM1`.
+
+Terminal 1:
+
+```bash
+sudo cat /dev/ttyACM1
+```
+
+Terminal 2:
+
+```bash
+printf 'hello usb\r\n' | sudo tee /dev/ttyACM1 > /dev/null
+```
+
+Terminal 1 should print:
+
+```text
+hello usb
+```
+
+Minicom can also be used:
+
+```bash
+sudo minicom -D /dev/ttyACM1 -b 115200
+```
+
+`/dev/ttyACM*` is USB CDC virtual serial, not STM32 `USART1`. If minicom shows
+characters twice, toggle local echo with `Ctrl-A` then `E`.
